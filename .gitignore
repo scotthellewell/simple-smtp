@@ -3,3 +3,4 @@ dist
 node_modules
 acme/**/*
 !acme/sample-settings.json
+received/**/*

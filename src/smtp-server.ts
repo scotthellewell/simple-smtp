@@ -4,7 +4,7 @@ import { HttpServer } from './htttp-server.js';
 import dns from 'dns';
 
 const debugEnabled = false;
-class SmtpTransaction {
+export class SmtpTransaction {
     reversePath: string;
     forwardPaths: string[] = [];
     data: string = null;
@@ -20,11 +20,12 @@ type SmtpTransport = Socket & {
     password?: string;
     secure?: boolean;
     authenticated?: boolean;
+    closing?: boolean;
 }
 
 export class SmtpServer {
     private server: net.Server;
-    constructor(private port: number, private certServer: HttpServer) {
+    constructor(private port: number, private certServer: HttpServer, private verifyAuth: (username: string, password: string) => Promise<boolean>, private processTransaction: (transaction: SmtpTransaction) => Promise<boolean>) {
         this.setupServer();
     }
 
@@ -33,10 +34,9 @@ export class SmtpServer {
             socket.messageBuffer = "";
             socket.setEncoding('utf8');
             socket.on('data', (data) => { this.onData(socket, data); });
-            socket.on('error', (error) => { console.error(`${socket.remoteAddress}:${socket.remotePort} Connection Error ${error}`); });
+            socket.on('error', (error) => { if (!socket.closing) { console.error(error); } });
             this.send(socket, "220 smtp.elevateh.net ready");
         });
-
         this.server.listen(this.port, () => { console.log(`Smtp Server listening on port ${this.port}`); });
     }
 
@@ -117,11 +117,11 @@ export class SmtpServer {
 
     }
 
-    send(transport: SmtpTransport, message: string) {
+    send(transport: SmtpTransport, message: string, errorHandler?: (error?: Error) => void) {
         if (debugEnabled) {
             console.log("S: '" + message + "'");
         }
-        transport.write(message + "\r\n");
+        transport.write(message + "\r\n", errorHandler);
     }
 
     processHELP(transport: SmtpTransport, message: string) {
@@ -135,6 +135,7 @@ export class SmtpServer {
     }
 
     processQUIT(transport: SmtpTransport, message: string) {
+        transport.closing = true;
         this.send(transport, "221 Goodbye");
         transport.end();
     }
@@ -193,11 +194,11 @@ export class SmtpServer {
         tlsTransport.on("secure", () => {
             tlsTransport.secure = true;
         });
-        tlsTransport.on('error', (error) => { console.error(error) });
+        tlsTransport.on('error', (error) => { if (!tlsTransport.closing) { console.log(error); } });
         tlsTransport.on('data', (data) => { this.onData(tlsTransport, data) });
     }
 
-    processAUTH(transport: SmtpTransport, message: string) {
+    async processAUTH(transport: SmtpTransport, message: string) {
         if (transport.auth === "") {
             transport.auth = message;
         } else {
@@ -216,22 +217,14 @@ export class SmtpServer {
         const authSplit = Buffer.from(transport.auth, "base64").toString("utf8").split("\0");
         transport.userName = authSplit[1];
         transport.password = authSplit[2];
-
-        if (this.testAuth(transport)) {
+        if (await this.verifyAuth(transport.userName, transport.password)) {
             transport.authenticated = true;
             this.send(transport, "235 Authentication successful.");
         } else {
             this.send(transport, "535 Authentication failed.");
         }
-
-
-
-
     }
-    testAuth(transport: SmtpTransport) {
-        //TODO: Test Authentication Value
-        return true;
-    }
+
 
     processMAIL(transport: SmtpTransport, message: string) {
         if (transport.transaction) {
@@ -303,14 +296,17 @@ export class SmtpServer {
         this.send(transport, "250 OK");
     }
 
-    processDATA(transport: SmtpTransport, message: string) {
+    async processDATA(transport: SmtpTransport, message: string) {
         if (transport.transaction.data === null) {
             transport.transaction.data = "";
             this.send(transport, "354 Start mail input; end with <CRLF>.<CRLF>");
         } else {
             if (message === ".") {
-                this.send(transport, "250 OK");
-                this.processTransaction(transport.transaction);
+                if (await this.processTransaction(transport.transaction)) {
+                    this.send(transport, "250 OK");
+                } else {
+                    this.send(transport, "500 Message not accepted");
+                }
                 transport.transaction = null;
             } else {
                 if (message[0] == ".") { message = message.slice(1); }
@@ -319,12 +315,6 @@ export class SmtpServer {
         }
     }
 
-    processTransaction(transaction: SmtpTransaction) {
-        console.log("Email Received from: <" +  transaction.reversePath + "> for " + transaction.forwardPaths.map(e => "<" + e + ">"));
-        //TODO: Do something here.
-        if (debugEnabled) {
-            console.log(transaction);
-        }
-    }
+
 
 }
