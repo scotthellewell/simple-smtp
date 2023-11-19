@@ -10,22 +10,21 @@ export class SmtpTestClient {
             host: "localhost",
             port: 25,
             secure: false,
-            tls: {rejectUnauthorized: false},
+            tls: { rejectUnauthorized: false },
             auth: {
                 user: "REPLACE-WITH-YOUR-ALIAS@YOURDOMAIN.COM",
                 pass: "REPLACE-WITH-YOUR-GENERATED-PASSWORD",
             },
         });
-        try{
-        const info = await transporter.sendMail({
-            from: '"Fred Foo 👻" <foo@example.com>', // sender address
-            to: "bar@example.com, baz@example.com", // list of receivers
-            subject: "Hello ✔", // Subject line
-            text: "Hello world?", // plain text body
-            html: "<b>Hello world?</b>", // html body
-        });
-    } catch(error){
-        console.error(error);
-    }
+        try {
+            const info = await transporter.sendMail({
+                from: '"Test 👻" <test@dev.elevateh.net>',
+                to: '"Scott Hellewell" <scooth@elevateh.com>',
+                subject: "Test Subject",
+                html: "Test Content<br/><br/>--Test",
+            });
+        } catch (error) {
+            console.error(error);
+        }
     }
 }

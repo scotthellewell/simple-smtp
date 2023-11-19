@@ -1,7 +1,8 @@
 import net, { Socket } from 'net';
 import tls from 'tls';
-import { HttpServer } from './htttp-server.js';
+import { HttpServer } from './web/htttp-server.js';
 import dns from 'dns';
+import { Acme } from './acme.js';
 
 const debugEnabled = false;
 export class SmtpTransaction {
@@ -9,6 +10,9 @@ export class SmtpTransaction {
     forwardPaths: string[] = [];
     data: string = null;
     body: "7BIT" | "8BITMIME" = "7BIT";
+    clientIP?: string;
+    helo?: string;
+    
 }
 
 type SmtpTransport = Socket & {
@@ -37,7 +41,7 @@ export class SmtpServer {
             socket.on('error', (error) => { if (!socket.closing) { console.error(error); } });
             this.send(socket, "220 smtp.elevateh.net ready");
         });
-        this.server.listen(this.port, () => { console.log(`Smtp Server listening on port ${this.port}`); });
+        this.server.listen(this.port);
     }
 
     onData(transport: SmtpTransport, data: Buffer) {
@@ -69,7 +73,6 @@ export class SmtpServer {
                 return;
             }
         }
-
 
         if (transport.transaction && transport.transaction.data !== null) {
             return this.processDATA(transport, message);
@@ -175,13 +178,13 @@ export class SmtpServer {
         try {
             domains = await dns.promises.reverse(localAddress);
         } catch (error) { }
-        const certificate = await this.certServer.getCertificate(domains);
+        const certificate = await Acme.getCertificate(domains);
         this.send(transport, "220 Ready to start TLS");
         const tlsTransport = new tls.TLSSocket(transport, {
             key: certificate.key,
             cert: certificate.cert,
             SNICallback: (serverName, callback) => {
-                this.certServer.getCertificate([serverName]).then(certificate => {
+                Acme.getCertificate([serverName]).then(certificate => {
                     callback(null, tls.createSecureContext(certificate));
                 });
             },
@@ -270,6 +273,8 @@ export class SmtpServer {
         transport.transaction = new SmtpTransaction();
         transport.transaction.reversePath = reversePath;
         transport.transaction.body = body;
+        transport.transaction.clientIP = transport.remoteAddress;
+        transport.transaction.helo = transport.hello.slice(5);
         this.send(transport, "250 OK");
     }
 
@@ -289,7 +294,7 @@ export class SmtpServer {
         const rcpt = message.slice(1, message.length - 1);
 
         if (!(transport.authenticated || rcpt.toUpperCase().endsWith("@DEV.ELEVATEH.NET"))) {
-            this.send(transport, "501 unable to relay for  <" + rcpt + ">.");
+            this.send(transport, "554 unable to relay for  <" + rcpt + ">.");
             return;
         }
         transport.transaction.forwardPaths.push(rcpt);
