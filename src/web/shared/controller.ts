@@ -74,11 +74,10 @@ export abstract class Controller {
     get #httpDeleteMethodDescriptors(): HttpMethodDescriptor[] { return this[httpDeleteSymbol]; }
 
     async #registerAllRoutes() {
-        this.router.get("/", (request, response, next) => { response.send("Hello"); });
-        // this.#registerRoutes(this.router.get, this.#httpGetMethodDescriptors);
-        // this.#registerRoutes(this.router.post, this.#httpPostMethodDescriptors);
-        // this.#registerRoutes(this.router.patch, this.#httpPatchMethodDescriptors);
-        // this.#registerRoutes(this.router.delete, this.#httpDeleteMethodDescriptors);
+        this.#registerRoutes(this.router.get, this.#httpGetMethodDescriptors);
+        this.#registerRoutes(this.router.post, this.#httpPostMethodDescriptors);
+        this.#registerRoutes(this.router.patch, this.#httpPatchMethodDescriptors);
+        this.#registerRoutes(this.router.delete, this.#httpDeleteMethodDescriptors);
     }
 
     async #registerRoutes(routerMethod, descriptors: HttpMethodDescriptor[]) {

@@ -4,6 +4,7 @@ import tls from 'tls';
 import { Controller } from './shared/controller.js';
 import { AcmeController } from './controllers/acme.controller.js';
 import { Acme } from '../acme.js';
+import { createProxyMiddleware, Filter, Options, RequestHandler } from 'http-proxy-middleware';
 
 export class HttpServer {
     server: express.Server;
@@ -18,6 +19,14 @@ export class HttpServer {
         for (const controller of this.#controllers) {
             this.server.use(controller.routerPath, controller.router);
         }
+
+        this.server.use(
+            '/',
+            createProxyMiddleware({
+                target: 'http://localhost:4300',
+                changeOrigin: true,
+            }),
+        );
 
         this.server.listen(80);
         this.httpsServer = new https.Server({
