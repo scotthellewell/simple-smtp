@@ -1,18 +1,21 @@
 import net, { Socket } from 'net';
-import tls from 'tls';
+import tls, { TLSSocket } from 'tls';
 import { HttpServer } from './web/htttp-server.js';
 import dns from 'dns';
 import { Acme } from './acme.js';
+import crypto from 'crypto';
+import os from 'os';
+import mailauth from 'mailauth';
 
 const debugEnabled = false;
 export class SmtpTransaction {
     reversePath: string;
     forwardPaths: string[] = [];
     data: string = null;
-    body: "7BIT" | "8BITMIME" = "7BIT";
+    bodyEncoding: "7BIT" | "8BITMIME" = "7BIT";
     clientIP?: string;
     helo?: string;
-    
+    protocol = "SMTP";
 }
 
 type SmtpTransport = Socket & {
@@ -61,7 +64,7 @@ export class SmtpServer {
             console.log("R: '" + message + "'");
         }
         const chars = message.split("").map(c => c.charCodeAt(0));
-        if (!transport.transaction || transport.transaction.body === "7BIT") {
+        if (!transport.transaction || transport.transaction.bodyEncoding === "7BIT") {
             if (!chars.every(c => c <= 127)) {
                 this.send(transport, "500 Expected only 7 bit data.");
                 return;
@@ -272,9 +275,16 @@ export class SmtpServer {
 
         transport.transaction = new SmtpTransaction();
         transport.transaction.reversePath = reversePath;
-        transport.transaction.body = body;
+        transport.transaction.bodyEncoding = body;
         transport.transaction.clientIP = transport.remoteAddress;
         transport.transaction.helo = transport.hello.slice(5);
+        transport.transaction.protocol = (transport.hello.slice(0, 4).toLowerCase() === "helo" ? "SMTP" : "ESMTP") + (transport.secure ? "S" : "") + (transport.authenticated ? "A" : "")
+        if (transport.secure) {
+            console.log((transport as TLSSocket).getProtocol());
+            console.log((transport as TLSSocket).getCipher());
+        }
+
+
         this.send(transport, "250 OK");
     }
 
@@ -307,6 +317,8 @@ export class SmtpServer {
             this.send(transport, "354 Start mail input; end with <CRLF>.<CRLF>");
         } else {
             if (message === ".") {
+                await this.addReceivedHeader(transport);
+                await this.addMailAuthHeaders(transport);
                 if (await this.processTransaction(transport.transaction)) {
                     this.send(transport, "250 OK");
                 } else {
@@ -320,6 +332,58 @@ export class SmtpServer {
         }
     }
 
+    async addReceivedHeader(transport: SmtpTransport) {
+        const helo = transport.transaction.helo;
+        let remoteName = "";
+        const remoteIP = transport.remoteAddress;
+        try {
+            remoteName = await dns.promises.reverse(transport.remoteAddress)[0];
+            if (!remoteName) {
+                if (remoteIP == "::1" || remoteIP == "127.0.0.1" || remoteIP == "FFFF::127.0.0.1") {
+                    remoteName = os.hostname();
+                }
+            }
+        } catch (error) { }
+        let localName = "";
+        try {
+            localName = await dns.promises.reverse(transport.remoteAddress)[0];
+            if (!localName) {
+                localName = os.hostname();
+            }
+        } catch (error) { }
+        const localIP = transport.localAddress;
+        let protocol = transport.transaction.protocol;
+        const cipher = transport.secure ? (transport as TLSSocket).getCipher() : null;
+        protocol += cipher ? ` (version=${cipher.version}, cipher=${cipher.standardName})` : "";
+        const _for = transport.authenticated ? `\r\n for <${transport.transaction.reversePath}>` : '';
+        const id = crypto.randomUUID();
+        const dateSplit = new Date().toString().split(" ");
+        const timestamp = `${dateSplit[0]}, ${dateSplit[1]} ${dateSplit[2]} ${dateSplit[3]} ${dateSplit[4]} ${dateSplit[5].slice(3)}`;
+        transport.transaction.data = `Received: from ${helo} (${remoteName} [${remoteIP}])\r\n by ${localName} (${localIP})\r\n with ${protocol}${_for}\r\n id ${id}; ${timestamp}\r\n${transport.transaction.data}`;
+    }
 
-
+    async addMailAuthHeaders(transport: SmtpTransport) {
+        try {
+            if (!transport.authenticated) {
+                let ip = transport.remoteAddress;
+                if (ip.startsWith("::ffff:")){
+                    ip = ip.replace("::ffff:","");
+                }
+                const authResults = await mailauth.authenticate(
+                    transport.transaction.data,
+                    {
+                        ip: ip,
+                        helo: transport.transaction.helo,
+                        sender: transport.transaction.reversePath,
+                        mta: 'scotth-home.elevateh.net'
+                    });
+                transport.transaction.data = authResults.headers + transport.transaction.data;
+                //TODO: arc sign
+            } else {
+                //TODO: dkim sign
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
 }

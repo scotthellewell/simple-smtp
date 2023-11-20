@@ -74,29 +74,26 @@ export abstract class Controller {
     get #httpDeleteMethodDescriptors(): HttpMethodDescriptor[] { return this[httpDeleteSymbol]; }
 
     async #registerAllRoutes() {
-        this.#registerRoutes(this.router.get, this.#httpGetMethodDescriptors);
-        this.#registerRoutes(this.router.post, this.#httpPostMethodDescriptors);
-        this.#registerRoutes(this.router.patch, this.#httpPatchMethodDescriptors);
-        this.#registerRoutes(this.router.delete, this.#httpDeleteMethodDescriptors);
+        this.#registerRoutes("get", this.#httpGetMethodDescriptors);
+        this.#registerRoutes("post", this.#httpPostMethodDescriptors);
+        this.#registerRoutes("patch", this.#httpPatchMethodDescriptors);
+        this.#registerRoutes("delete", this.#httpDeleteMethodDescriptors);
     }
 
     async #registerRoutes(routerMethod, descriptors: HttpMethodDescriptor[]) {
         if (descriptors) {
             for (const descriptor of descriptors) {
-                routerMethod(descriptor.path,
-                    (request, response, next) => {
-                        if (request.headers["authorization"]) {
-                            next(null);
+                this.router[routerMethod](descriptor.path,
+                    (request: Request, response: Response, next:NextFunction) => {
+                        if (request.headers["authorization"] || (!this.#options.allowAnonymous && !descriptor.options?.allowAnonymous)) {
+                            Controller.#getJwtMiddleware().then(jwtHandler => {
+                                jwtHandler(request, response, next);
+                            });
                         } else {
-                            if (this.#options.allowAnonymous || descriptor.options?.allowAnonymous) {
-                                Controller.#getJwtMiddleware().then(jwtHandler => {
-                                    jwtHandler(request, response, next);
-                                });                                
-                            } else {
-                                next(null);
-                            }
+                            next(null);
                         }
-                    }, (request, response, next) => {
+                    },
+                    (request: Request, response: Response, next:NextFunction) => {
                         HttpContext.start(request, response, next, request["user"],
                             () => descriptor.propertyDescriptor.value.bind(this)());
                     }

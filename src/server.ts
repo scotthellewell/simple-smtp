@@ -31,30 +31,30 @@ class Server {
 
     async processMail(transaction: SmtpTransaction): Promise<boolean> {
         console.log("Email Received from: <" + transaction.reversePath + "> for " + transaction.forwardPaths.map(e => "<" + e + ">"));
+        console.log(transaction.data.split("\r\n\r\n")[0]);
         if (!fs.existsSync("./received")) {
             await fs.promises.mkdir("./received");
         }
         const id = randomUUID();
         await fs.promises.writeFile("./received/" + id + ".json", JSON.stringify(transaction));
         await fs.promises.writeFile("./received/" + id + ".txt", transaction.data);
-        console.log(transaction);
-        const { dkim, spf, arc, dmarc, bimi, receivedChain, headers } = await authenticate(
+        const authResults = await authenticate(
             transaction.data,
             {
+                // trustReceived: true,
                 ip: transaction.clientIP,
                 helo: transaction.helo,
                 sender: transaction.reversePath,
                 mta: 'scotth-home.elevateh.net'
             }
         );
-
+        console.log(authResults);
         return true;
-
     }
 }
 
 new Server();
-// new SmtpTestClient();
+new SmtpTestClient();
 // const message = new Message(fs.readFileSync("received/95129a91-5de1-4f65-834f-16ff5e8a3112.txt").toString("utf8"));
 // var dkim = new DKIM();
 // console.log(await dkim.verify(message));

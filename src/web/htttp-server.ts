@@ -20,6 +20,8 @@ export class HttpServer {
             this.server.use(controller.routerPath, controller.router);
         }
 
+        this.server.use(express.static("web_root"));
+
         this.server.use(
             '/',
             createProxyMiddleware({

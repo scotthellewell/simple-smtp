@@ -4,3 +4,6 @@ node_modules
 acme/**/*
 !acme/sample-settings.json
 received/**/*
+**/*.pem
+**/*.key
+**/*.cert
