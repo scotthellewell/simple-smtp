@@ -4,6 +4,10 @@ import { HttpServer } from './web/htttp-server.js';
 import fs from 'fs';
 import { randomUUID } from 'crypto'
 import { authenticate } from 'mailauth';
+import { PasswordHasher } from './password-hasher.js';
+import { SimpleSmtpDatacontext } from './simple-smtp-data-context.js';
+import { User } from './models/user.js';
+import crypto from 'crypto';
 
 class Server {
     serverMta: SmtpServer;
@@ -24,9 +28,18 @@ class Server {
     }
 
     async authenticate(userName: string, password: string): Promise<boolean> {
-        console.log("userName: " + userName);
-        console.log("password: " + password);
-        return true;
+        const dc = new SimpleSmtpDatacontext();
+        const query = dc.query(User);
+        const user = (await query.filter(u => u.email === userName, {userName}).toArrayAsync())[0];
+        if (user && PasswordHasher.verify(user.hash, password)){
+            user.lastLogin = new Date();
+            user.modified = new Date();
+            user.modifiedBy = user.id;
+            await dc.executeTransactionAsync(async tc => tc.updateAsync(User, user));
+            return true;
+        }
+        return false;
+        
     }
 
     async processMail(transaction: SmtpTransaction): Promise<boolean> {
@@ -55,7 +68,3 @@ class Server {
 
 new Server();
 new SmtpTestClient();
-// const message = new Message(fs.readFileSync("received/95129a91-5de1-4f65-834f-16ff5e8a3112.txt").toString("utf8"));
-// var dkim = new DKIM();
-// console.log(await dkim.verify(message));
-// console.log("");

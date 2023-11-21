@@ -7,10 +7,10 @@ export class Acme {
     static #settings: { domains: string[], emailAddress: string }
     private static get settings() {
         if (!this.#settings) {
-            if (fs.existsSync("acme/settings.json")) {
-                this.#settings = JSON.parse(fs.readFileSync("acme/settings.json").toString("utf8"));
+            if (fs.existsSync("settings/acme/settings.json")) {
+                this.#settings = JSON.parse(fs.readFileSync("settings/acme/settings.json").toString("utf8"));
             } else {
-                console.error("acme/settings.json is missing.");
+                console.error("settings/acme/settings.json is missing.");
             }
         }
         return this.#settings;
@@ -35,9 +35,9 @@ export class Acme {
         for (const altName of altNames) {
             path += "!" + altName;
         }
-        if (fs.existsSync("./acme/" + domain + "/" + path + "-cert.pem") && fs.existsSync("./acme/" + domain + "/" + path + "-key.pem")) {
-            key = await fs.promises.readFile("./acme/" + domain + "/" + path + "-key.pem");
-            cert = await fs.promises.readFile("./acme/" + domain + "/" + path + "-cert.pem");
+        if (fs.existsSync("./settings/acme/" + domain + "/" + path + "-cert.pem") && fs.existsSync("./settings/acme/" + domain + "/" + path + "-key.pem")) {
+            key = await fs.promises.readFile("./settings/acme/" + domain + "/" + path + "-key.pem");
+            cert = await fs.promises.readFile("./settings/acme/" + domain + "/" + path + "-cert.pem");
             const validTo = new Date(new X509Certificate(cert).validTo);
             const getNewDate = new Date(validTo);
             getNewDate.setDate(getNewDate.getDate() - 45);
@@ -61,14 +61,14 @@ export class Acme {
                 path += "!" + altName;
             }
             let accountKey: Buffer;
-            if (fs.existsSync("./acme/account-key")) {
-                accountKey = await fs.promises.readFile("./acme/account-key");
+            if (fs.existsSync("./settings/acme/account-key")) {
+                accountKey = await fs.promises.readFile("./settings/acme/account-key");
             } else {
                 accountKey = await acme.crypto.createPrivateKey();
                 if (!fs.existsSync("./acme")) {
                     await fs.promises.mkdir("./acme");
                 }
-                await fs.promises.writeFile("./acme/account-key", accountKey);
+                await fs.promises.writeFile("./settings/acme/account-key", accountKey);
             }
             const client = new acme.Client({
                 directoryUrl: acme.directory.letsencrypt.production,
@@ -89,11 +89,11 @@ export class Acme {
                     this.#challenge[challenge.token] = null;
                 },
             })
-            if (!fs.existsSync("./acme/" + domain)) {
-                await fs.promises.mkdir("./acme/" + domain);
+            if (!fs.existsSync("./settings/acme/" + domain)) {
+                await fs.promises.mkdir("./settings/acme/" + domain);
             }
-            await fs.promises.writeFile("./acme/" + domain + "/" + path + "-key.pem", key);
-            await fs.promises.writeFile("./acme/" + domain + "/" + path + "-cert.pem", cert);
+            await fs.promises.writeFile("./settings/acme/" + domain + "/" + path + "-key.pem", key);
+            await fs.promises.writeFile("./settings/acme/" + domain + "/" + path + "-cert.pem", cert);
             return { cert, key };
         }
         catch (error) {

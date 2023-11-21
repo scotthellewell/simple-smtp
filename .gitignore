@@ -1,9 +1,7 @@
 .DS_Store
 dist
 node_modules
-acme/**/*
-!acme/sample-settings.json
-received/**/*
+settings/**/*
 **/*.pem
 **/*.key
 **/*.cert

@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import os from 'os';
 import mailauth from 'mailauth';
 
-const debugEnabled = false;
+const debugEnabled = true;
 export class SmtpTransaction {
     reversePath: string;
     forwardPaths: string[] = [];
@@ -335,23 +335,32 @@ export class SmtpServer {
     async addReceivedHeader(transport: SmtpTransport) {
         const helo = transport.transaction.helo;
         let remoteName = "";
-        const remoteIP = transport.remoteAddress;
+        let remoteIP = transport.remoteAddress;
+        if (remoteIP.startsWith("::ffff:")) {
+            remoteIP = remoteIP.replace("::ffff:", "");
+        }
         try {
-            remoteName = await dns.promises.reverse(transport.remoteAddress)[0];
+            let remoteAddress = transport.remoteAddress;
+
+            remoteName = (await dns.promises.reverse(remoteIP))[0];
             if (!remoteName) {
-                if (remoteIP == "::1" || remoteIP == "127.0.0.1" || remoteIP == "FFFF::127.0.0.1") {
+                if (remoteIP == "::1" || remoteIP == "127.0.0.1" || remoteIP == "::ffff:127.0.0.1") {
                     remoteName = os.hostname();
                 }
             }
         } catch (error) { }
+
+        let localIP = transport.localAddress;
+        if (localIP.startsWith("::ffff:")) {
+            localIP = localIP.replace("::ffff:", "");
+        }
         let localName = "";
         try {
-            localName = await dns.promises.reverse(transport.remoteAddress)[0];
+            localName = await (dns.promises.reverse(localIP))[0];
             if (!localName) {
                 localName = os.hostname();
             }
         } catch (error) { }
-        const localIP = transport.localAddress;
         let protocol = transport.transaction.protocol;
         const cipher = transport.secure ? (transport as TLSSocket).getCipher() : null;
         protocol += cipher ? ` (version=${cipher.version}, cipher=${cipher.standardName})` : "";
@@ -366,8 +375,8 @@ export class SmtpServer {
         try {
             if (!transport.authenticated) {
                 let ip = transport.remoteAddress;
-                if (ip.startsWith("::ffff:")){
-                    ip = ip.replace("::ffff:","");
+                if (ip.startsWith("::ffff:")) {
+                    ip = ip.replace("::ffff:", "");
                 }
                 const authResults = await mailauth.authenticate(
                     transport.transaction.data,

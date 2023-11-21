@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { Settings } from "./settings.js";
 
 export class SmtpTestClient {
 
@@ -6,14 +7,15 @@ export class SmtpTestClient {
         this.start();
     }
     async start() {
+        
         const transporter = nodemailer.createTransport({
-            host: "localhost",
+            host: "scotth2.elevateh.net",
             port: 25,
             secure: false,
             tls: { rejectUnauthorized: false },
             auth: {
-                user: "REPLACE-WITH-YOUR-ALIAS@YOURDOMAIN.COM",
-                pass: "REPLACE-WITH-YOUR-GENERATED-PASSWORD",
+                user: Settings.testUser,
+                pass: Settings.testPassword,
             },
         });
         try {
