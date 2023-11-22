@@ -13,5 +13,5 @@ export class User {
     @column() lastName?: string;
     @column() displayName?: string;
     @column() lastLogin?: Date;
-    @column() hash?: string;
+    @column() passwordHash?: string;
 }

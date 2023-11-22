@@ -1,13 +1,12 @@
+import fs from 'fs';
 import { SmtpServer, SmtpTransaction } from './smtp-server.js';
 import { SmtpTestClient } from './smtp-test-client.js';
 import { HttpServer } from './web/htttp-server.js';
-import fs from 'fs';
 import { randomUUID } from 'crypto'
 import { authenticate } from 'mailauth';
 import { PasswordHasher } from './password-hasher.js';
 import { SimpleSmtpDatacontext } from './simple-smtp-data-context.js';
 import { User } from './models/user.js';
-import crypto from 'crypto';
 
 class Server {
     serverMta: SmtpServer;
@@ -16,30 +15,29 @@ class Server {
 
     constructor() {
         this.certificateServer = new HttpServer();
-        this.serverMta = new SmtpServer(25, this.certificateServer,
+        this.serverMta = new SmtpServer(25,
             (userName, password) => this.authenticate(userName, password),
             (transaction) => this.processMail(transaction)
         );
-        this.serverMsa = new SmtpServer(587, this.certificateServer,
+        this.serverMsa = new SmtpServer(587,
             (userName, password) => this.authenticate(userName, password),
             (transaction) => this.processMail(transaction)
         );
         console.log("Press [^C] to exit.");
     }
 
-    async authenticate(userName: string, password: string): Promise<boolean> {
+    async authenticate(userName: string, password: string): Promise<User> {
         const dc = new SimpleSmtpDatacontext();
         const query = dc.query(User);
-        const user = (await query.filter(u => u.email === userName, {userName}).toArrayAsync())[0];
-        if (user && PasswordHasher.verify(user.hash, password)){
+        const user = (await query.filter(u => u.email === userName, {userName}).toArray())[0];
+        if (user && PasswordHasher.verify(user.passwordHash, password)){
             user.lastLogin = new Date();
             user.modified = new Date();
             user.modifiedBy = user.id;
-            await dc.executeTransactionAsync(async tc => tc.updateAsync(User, user));
-            return true;
+            await dc.executeTransaction(async tc => tc.update(User, user));
+            return user;
         }
-        return false;
-        
+        return null;        
     }
 
     async processMail(transaction: SmtpTransaction): Promise<boolean> {

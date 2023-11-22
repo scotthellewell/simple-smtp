@@ -4,10 +4,10 @@ import { Class, ColumnExpression, getColumns, getDataSourceMetadata, SqlExpressi
 import { IQueryable } from "./queryable.interfaces.js";
 
 export interface ITransactionContext {
-    insertAsync<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
-    updateAsync<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
-    upsertAsync<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
-    deleteAsync<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
+    insert<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
+    update<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
+    upsert<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
+    delete<T>(elementType: Class<T>, element: T, log?: boolean): Promise<void>;
 }
 
 export class TransactionContext implements ITransactionContext {
@@ -16,7 +16,7 @@ export class TransactionContext implements ITransactionContext {
         protected readonly connection: IConnection
     ) { }
 
-    async insertAsync<T>(elementType: Class<T>, element: T, log = false) {
+    async insert<T>(elementType: Class<T>, element: T, log = false) {
         const columns = getColumns(elementType);
         const datasourceMeta = getDataSourceMetadata(elementType);
         let text = `INSERT [${datasourceMeta.name}] (`;
@@ -48,10 +48,10 @@ export class TransactionContext implements ITransactionContext {
         }
         text += ")";
         const expression = new SqlExpression(text, parameters);
-        await this.provider.executeAsync(expression, this.connection, log)
+        await this.provider.execute(expression, this.connection, log)
     }
 
-    async updateAsync<T>(elementType: Class<T>, element: T, log = false) {
+    async update<T>(elementType: Class<T>, element: T, log = false) {
         const columns = getColumns(elementType);
         const datasourceMeta = getDataSourceMetadata(elementType);
         const parameters = [];
@@ -74,10 +74,10 @@ export class TransactionContext implements ITransactionContext {
         }
         text += ")";
         const expression = new SqlExpression(text, parameters);
-        await this.provider.executeAsync(expression, this.connection, log)
+        await this.provider.execute(expression, this.connection, log)
     }
 
-    async upsertAsync<T>(elementType: Class<T>, element: T, log = false) {
+    async upsert<T>(elementType: Class<T>, element: T, log = false) {
         const columns = getColumns(elementType);
         const datasourceMeta = getDataSourceMetadata(elementType);
         const parameters = [];
@@ -146,10 +146,10 @@ export class TransactionContext implements ITransactionContext {
         }
         text += ")\nEND\n\nCOMMIT TRANSACTION";
         const expression = new SqlExpression(text, parameters);
-        await this.provider.executeAsync(expression, this.connection, log)
+        await this.provider.execute(expression, this.connection, log)
     }
 
-    async deleteAsync<T>(elementType: Class<T>, element: T, log: boolean = false) {
+    async delete<T>(elementType: Class<T>, element: T, log: boolean = false) {
         const columns = getColumns(elementType);
         const datasourceMeta = getDataSourceMetadata(elementType);
         const keys = columns.filter(c => c.isKey);
@@ -166,19 +166,19 @@ export class TransactionContext implements ITransactionContext {
         }
         text += ")";
         const expression = new SqlExpression(text, parameters);
-        await this.provider.executeAsync(expression, this.connection, log)
+        await this.provider.execute(expression, this.connection, log)
     }
 
-    async beginTransactionAsync() {
-        await this.connection.beginTransactionAsync();
+    async beginTransaction() {
+        await this.connection.beginTransaction();
     }
 
-    async commitTransactionAsync() {
-        await this.connection.commitTransactionAsync();
+    async commitTransaction() {
+        await this.connection.commitTransaction();
     }
 
-    async rollbackTransactionAsync() {
-        await this.connection.rollbackTransactionAsync();
+    async rollbackTransaction() {
+        await this.connection.rollbackTransaction();
     }
 }
 
@@ -187,23 +187,23 @@ export class DataContext {
         protected readonly provider: QueryProvider
     ) { }
 
-    async executeTransactionAsync<T>(transactionFunction: (context: ITransactionContext) => Promise<T>) {
-        const connection = await this.provider.getConnectionAsync();
+    async executeTransaction<T>(transactionFunction: (context: ITransactionContext) => Promise<T>) {
+        const connection = await this.provider.getConnection();
         try {
             const context = await this.getTransactionContext(connection);
             let result: T;
             try {
-                await context.beginTransactionAsync();
+                await context.beginTransaction();
                 result = await transactionFunction(context);
-                await context.commitTransactionAsync();
+                await context.commitTransaction();
                 return result;
             } catch (err) {
-                await context.rollbackTransactionAsync();
+                await context.rollbackTransaction();
                 throw err;
             }
         }
         finally {
-            await connection.closeAsync();
+            await connection.close();
         }
     }
 
@@ -211,8 +211,8 @@ export class DataContext {
         return this.provider.query(elementType);
     }
 
-    async querySqlAsync<T>(elementType: Class<T>, sql: string, parameters: any[]) {
-        const items = await this.provider.executeAsync<any[]>(new SqlExpression(sql, parameters));
+    async querySql<T>(elementType: Class<T>, sql: string, parameters: any[]) {
+        const items = await this.provider.execute<any[]>(new SqlExpression(sql, parameters));
         const results: T[] = [];
         if (items.length > 0) {
             const columns = getColumns(elementType);

@@ -2,17 +2,17 @@ import { IConnection } from "./connection-pool.js";
 import { Class, DataSource, Expression } from "./expressions/index.js";
 
 export interface IQueryProvider {
-    getConnectionAsync(): Promise<IConnection>
+    getConnection(): Promise<IConnection>
     createQuery<T>(expression: Expression, connection?: IConnection): IQueryable<T>;
     query<T>(dataSource: Class<T>, connection?: IConnection): IQueryable<T>
-    executeAsync<TResult>(expression: Expression, connection?: IConnection, log?: boolean): Promise<TResult>;
+    execute<TResult>(expression: Expression, connection?: IConnection, log?: boolean): Promise<TResult>;
 }
 
 export interface IQueryable<T> {
     /**
      * Executes the query and returns a promise to its results.
      */
-    toArrayAsync(log?: boolean): Promise<T[]>;
+    toArray(log?: boolean): Promise<T[]>;
     toDataBaseExpression(): Expression;
     expression: Expression;
     provider: IQueryProvider;

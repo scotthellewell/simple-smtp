@@ -9,7 +9,7 @@ export class SmtpTestClient {
     async start() {
         
         const transporter = nodemailer.createTransport({
-            host: "scotth2.elevateh.net",
+            host: "localhost",
             port: 25,
             secure: false,
             tls: { rejectUnauthorized: false },

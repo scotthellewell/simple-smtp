@@ -14,7 +14,7 @@ export class QueryProvider implements IQueryProvider {
 
     constructor(private connectionString: string) { }
 
-    getConnectionAsync(): Promise<IConnection> {
+    getConnection(): Promise<IConnection> {
         return ConnectionPool.getConnection(this.connectionString);
     }
 
@@ -26,7 +26,7 @@ export class QueryProvider implements IQueryProvider {
         return this.createQuery(new DataSource(dataSource), connection);
     }
 
-    async executeAsync<TResult>(expression: Expression, connection?: IConnection, log = false): Promise<TResult> {
+    async execute<TResult>(expression: Expression, connection?: IConnection, log = false): Promise<TResult> {
         const dbVisitor = new DatabaseExpressionVisitor();
         const sqlVisitor = new SqlExpressionVisitor();
         const projectorVisitor = new ProjectorVisitor();
@@ -41,11 +41,11 @@ export class QueryProvider implements IQueryProvider {
         let rows: any;
 
         if (!connection) {
-            connection = await this.getConnectionAsync();
-            rows = await connection.executeAsync(sqlExpression);
-            await connection.closeAsync();
+            connection = await this.getConnection();
+            rows = await connection.execute(sqlExpression);
+            await connection.close();
         } else {
-            rows = await connection.executeAsync(sqlExpression);
+            rows = await connection.execute(sqlExpression);
         }
         if (!dbExpression.projector) {
             return rows;

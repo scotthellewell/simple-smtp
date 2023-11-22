@@ -6,8 +6,9 @@ import { Acme } from './acme.js';
 import crypto from 'crypto';
 import os from 'os';
 import mailauth from 'mailauth';
+import { User } from './models/user.js';
 
-const debugEnabled = true;
+const debugEnabled = false;
 export class SmtpTransaction {
     reversePath: string;
     forwardPaths: string[] = [];
@@ -26,13 +27,16 @@ type SmtpTransport = Socket & {
     userName?: string;
     password?: string;
     secure?: boolean;
-    authenticated?: boolean;
+    authenticated?: User;
     closing?: boolean;
 }
 
 export class SmtpServer {
     private server: net.Server;
-    constructor(private port: number, private certServer: HttpServer, private verifyAuth: (username: string, password: string) => Promise<boolean>, private processTransaction: (transaction: SmtpTransaction) => Promise<boolean>) {
+    constructor(
+        private port: number, 
+        private verifyAuth: (username: string, password: string) => Promise<User>, 
+        private processTransaction: (transaction: SmtpTransaction) => Promise<boolean>) {
         this.setupServer();
     }
 
@@ -223,10 +227,12 @@ export class SmtpServer {
         const authSplit = Buffer.from(transport.auth, "base64").toString("utf8").split("\0");
         transport.userName = authSplit[1];
         transport.password = authSplit[2];
-        if (await this.verifyAuth(transport.userName, transport.password)) {
-            transport.authenticated = true;
+        const user = await this.verifyAuth(transport.userName, transport.password);
+        if (user) {
+            transport.authenticated = user;
             this.send(transport, "235 Authentication successful.");
         } else {
+            transport.authenticated = null;
             this.send(transport, "535 Authentication failed.");
         }
     }
@@ -271,20 +277,12 @@ export class SmtpServer {
         }
 
         const reversePath = message.slice(1, message.length - 1);
-
-
         transport.transaction = new SmtpTransaction();
         transport.transaction.reversePath = reversePath;
         transport.transaction.bodyEncoding = body;
         transport.transaction.clientIP = transport.remoteAddress;
         transport.transaction.helo = transport.hello.slice(5);
         transport.transaction.protocol = (transport.hello.slice(0, 4).toLowerCase() === "helo" ? "SMTP" : "ESMTP") + (transport.secure ? "S" : "") + (transport.authenticated ? "A" : "")
-        if (transport.secure) {
-            console.log((transport as TLSSocket).getProtocol());
-            console.log((transport as TLSSocket).getCipher());
-        }
-
-
         this.send(transport, "250 OK");
     }
 

@@ -93,7 +93,7 @@ export class ConnectionPool {
                 this.used.push(connection);
             } else {
                 connection = new PooledConnection(this.connectionString);
-                await connection.connectAsync();
+                await connection.connect();
                 this.used.push(connection);
             }
         });
@@ -132,11 +132,11 @@ export class ConnectionPool {
 
 export interface IConnection {
     // execSql(request: Request): Promise<any>;
-    closeAsync(): Promise<void>;
-    beginTransactionAsync(): Promise<void>;
-    commitTransactionAsync(): Promise<void>;
-    rollbackTransactionAsync(): Promise<void>;
-    executeAsync(command): Promise<any>;
+    close(): Promise<void>;
+    beginTransaction(): Promise<void>;
+    commitTransaction(): Promise<void>;
+    rollbackTransaction(): Promise<void>;
+    execute(command): Promise<any>;
 }
 
 export interface ICommand {
@@ -146,7 +146,7 @@ export interface ICommand {
 
 class PooledConnection implements IConnection {
 
-    async beginTransactionAsync(): Promise<void> {
+    async beginTransaction(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             this.connection.beginTransaction(err => {
                 if (err) {
@@ -158,7 +158,7 @@ class PooledConnection implements IConnection {
         });
     }
 
-    async commitTransactionAsync(): Promise<void> {
+    async commitTransaction(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             this.connection.commitTransaction(err => {
                 if (err) {
@@ -170,7 +170,7 @@ class PooledConnection implements IConnection {
         });
     }
 
-    async rollbackTransactionAsync(): Promise<void> {
+    async rollbackTransaction(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             this.connection.rollbackTransaction(err => {
                 if (err) {
@@ -183,7 +183,7 @@ class PooledConnection implements IConnection {
     }
 
     private uuidRegEx = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-    async executeAsync(command: ICommand): Promise<any> {
+    async execute(command: ICommand): Promise<any> {
         return new Promise<any>((resolve, reject) => {
             const request = new Request(command.text, (err, rowCount) => {
                 if (err) {
@@ -276,7 +276,7 @@ class PooledConnection implements IConnection {
         return !closed;
     }
 
-    async connectAsync() {
+    async connect() {
         return new Promise<void>((resolve, reject) => {
             this.connection.connect(err => {
                 if (err) {
@@ -288,7 +288,7 @@ class PooledConnection implements IConnection {
         });
     }
 
-    async closeAsync(): Promise<void> {
+    async close(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             this.connection.reset(err => {
                 if (err) {

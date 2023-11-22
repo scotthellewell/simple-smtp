@@ -12,12 +12,4 @@ export class AcmeController extends Controller {
         }
         return "";
     }
-
-    // @httpGet("/test")
-    // test(){
-    //     return "TesT";
-    // }
-    // this.server.get("/.well-known/acme-challenge/:token", (request, response) => {
-    //     response.send(this.challenge[request.params.token]);
-    // });
 }

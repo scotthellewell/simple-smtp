@@ -15,8 +15,8 @@ export class Query<T> implements IQueryable<T>{
         if (!expression) { throw new Error("expression is required."); }
     }
 
-    async toArrayAsync(log: boolean): Promise<T[]> {
-        return await this.provider.executeAsync<T[]>(this.expression, this.connection, log);
+    async toArray(log: boolean): Promise<T[]> {
+        return await this.provider.execute<T[]>(this.expression, this.connection, log);
     }
 
     toDataBaseExpression(): Expression {
