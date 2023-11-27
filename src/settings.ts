@@ -1,7 +1,7 @@
 import fs from 'fs'
 export class Settings {
 
-    static #settings: { connectionString?: string, testUser?: string, testPassword?: string };
+    static #settings: { connectionString?: string, testUser?: string, testPassword?: string, domain: string };
 
     static get connectionString() {
         let connectionString = process.env.SQLAZURECONNSTR_SimpleSmtp;
@@ -28,5 +28,10 @@ export class Settings {
     static get testPassword() {
         this.#loadSettings();
         return this.#settings.testPassword;
+    }
+
+    static get domain() {
+        this.#loadSettings();
+        return this.#settings.domain;
     }
 }

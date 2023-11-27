@@ -5,3 +5,5 @@ settings/**/*
 **/*.pem
 **/*.key
 **/*.cert
+mail-queue/**/*
+mailboxes/**/*

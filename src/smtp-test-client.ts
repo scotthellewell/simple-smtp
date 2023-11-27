@@ -21,7 +21,7 @@ export class SmtpTestClient {
         try {
             const info = await transporter.sendMail({
                 from: '"Test 👻" <test@dev.elevateh.net>',
-                to: '"Scott Hellewell" <scooth@elevateh.com>',
+                to: '"Scott Hellewell" <scotth@elevateh.com>',
                 subject: "Test Subject",
                 html: "Test Content<br/><br/>--Test",
             });

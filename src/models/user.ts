@@ -14,4 +14,5 @@ export class User {
     @column() displayName?: string;
     @column() lastLogin?: Date;
     @column() passwordHash?: string;
+    @column() forwardAddress: string;
 }

@@ -7,7 +7,9 @@ import crypto from 'crypto';
 import os from 'os';
 import mailauth from 'mailauth';
 import { User } from './models/user.js';
-
+import { DkimKey } from './DkimKey.js';
+import { dkimSign } from 'mailauth/lib/dkim/sign.js';
+import { Settings } from './settings.js';
 const debugEnabled = false;
 export class SmtpTransaction {
     reversePath: string;
@@ -17,6 +19,8 @@ export class SmtpTransaction {
     clientIP?: string;
     helo?: string;
     protocol = "SMTP";
+    authenticated?: User;
+    deliveryStatuses?: {forwardPath: string, status: string}[];
 }
 
 type SmtpTransport = Socket & {
@@ -34,8 +38,8 @@ type SmtpTransport = Socket & {
 export class SmtpServer {
     private server: net.Server;
     constructor(
-        private port: number, 
-        private verifyAuth: (username: string, password: string) => Promise<User>, 
+        private port: number,
+        private verifyAuth: (username: string, password: string) => Promise<User>,
         private processTransaction: (transaction: SmtpTransaction) => Promise<boolean>) {
         this.setupServer();
     }
@@ -45,7 +49,7 @@ export class SmtpServer {
             socket.messageBuffer = "";
             socket.setEncoding('utf8');
             socket.on('data', (data) => { this.onData(socket, data); });
-            socket.on('error', (error) => { if (!socket.closing) { console.error(error); } });
+            socket.on('error', (error) => { if (!socket.closing) { /*console.error(error);*/ } });
             this.send(socket, "220 smtp.elevateh.net ready");
         });
         this.server.listen(this.port);
@@ -283,6 +287,7 @@ export class SmtpServer {
         transport.transaction.clientIP = transport.remoteAddress;
         transport.transaction.helo = transport.hello.slice(5);
         transport.transaction.protocol = (transport.hello.slice(0, 4).toLowerCase() === "helo" ? "SMTP" : "ESMTP") + (transport.secure ? "S" : "") + (transport.authenticated ? "A" : "")
+        transport.transaction.authenticated = transport.authenticated;
         this.send(transport, "250 OK");
     }
 
@@ -376,18 +381,38 @@ export class SmtpServer {
                 if (ip.startsWith("::ffff:")) {
                     ip = ip.replace("::ffff:", "");
                 }
+                const signingDomain = Settings.domain;
+                const selector = await DkimKey.getActiveSelector(signingDomain);
+                const privateKey = await DkimKey.getPrivateKey(signingDomain, selector);
                 const authResults = await mailauth.authenticate(
                     transport.transaction.data,
                     {
                         ip: ip,
                         helo: transport.transaction.helo,
                         sender: transport.transaction.reversePath,
-                        mta: 'scotth-home.elevateh.net'
+                        mta: 'scotth-home.elevateh.net',
+                        seal: { signingDomain, selector, privateKey }
                     });
                 transport.transaction.data = authResults.headers + transport.transaction.data;
                 //TODO: arc sign
             } else {
-                //TODO: dkim sign
+                const domain = transport.transaction.reversePath.split("@")[1];
+                const selector = await DkimKey.getActiveSelector(domain);
+                const privateKey = await DkimKey.getPrivateKey(domain, selector);
+                const result = await dkimSign(transport.transaction.data, {
+                    signatureData: [
+                        {
+                            signingDomain: domain,
+                            selector: selector,
+                            privateKey: privateKey
+                        }
+                    ]
+                });
+                if (result.errors.length === 0 && result.signatures) {
+                    transport.transaction.data = result.signatures + transport.transaction.data;
+                } else {
+                    console.error(result.errors);
+                }
             }
         } catch (error) {
             console.error(error);
